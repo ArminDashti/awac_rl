@@ -1,13 +1,10 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Jun 26 01:55:23 2024
+import torch
+import torch.nn as nn
+import numpy as np
 
-@author: armin
-"""
 
 class AdvEstimator(nn.Module):
-    def __init__(
-        self, actor, critics, popart=False, method="mean", ensembling="mean", n=4):
+    def __init__(self, actor, critics, popart=False, method="mean", ensembling="mean", n=4):
         super().__init__()
         self.actor = actor
         self.critics = critics
