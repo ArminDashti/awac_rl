@@ -2,14 +2,22 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from agent import Agent
-from advantage import AdvEstimator, AdvEstimatorFilter
+from awac_rl.agent import Agent
+from awac_rl.advantage import AdvEstimator, AdvEstimatorFilter
+
+
 
 
 class AWAC:
-    def __init__(self, **kwargs):
-        self.agent = agent.train().to(device)
-        self.target_agent = copy.deepcopy(agent).train().to(device)
+    def __init__(self, cfg):
+        self.cfg = cfg
+        
+        self.num_steps_offline = self.cfg['num_steps_offline']
+        self.num_steps_online = self.cfg['num_steps_online']
+        
+        self.agent = Agent(cfg)
+        self.agent = self.agent.to(device).train()
+        self.target_agent = copy.deepcopy(agent).to(device).train()
         
         self.hard_update(target_agent.critic1, agent.critic1)
         self.hard_update(target_agent.critic2, agent.critic2)
@@ -21,12 +29,13 @@ class AWAC:
             betas=(0.9, 0.999))
         
         self.actor_optimizer = torch.optim.Adam(agent.actor.parameters(), lr=actor_lr, weight_decay=actor_l2, betas=(0.9, 0.999))
+        
         self.adv_estimator = AdvEstimator(agent.actor, [agent.critic1, agent.critic2], method=adv_method, n=adv_method_n)
         self.adv_filter = AdvEstimatorFilter(adv_estimator, crr_function, beta=beta)
-
-
+    
+    
     def train(self):
-        if actor_per:
+        if self.actor_per:
             actor_batch, *_ = buffer.sample(batch_size)
             critic_batch, priority_idxs = buffer.sample_uniform(batch_size)
         else:
@@ -46,9 +55,11 @@ class AWAC:
             action_dist_s1 = agent.actor(next_state_batch)
             action_s1 = action_dist_s1.rsample()
             logp_a1 = action_dist_s1.log_prob(action_s1).sum(-1, keepdim=True)
+            
             target_action_value_s1 = torch.min(
                 target_agent.critic1(next_state_batch, action_s1),
                 target_agent.critic2(next_state_batch, action_s1))
+            
             td_target = reward_batch + gamma * (1.0 - done_batch) * target_action_value_s1
 
         # update critics
@@ -60,9 +71,9 @@ class AWAC:
         critic_loss = critic_loss.mean()
         critic_optimizer.zero_grad()
         critic_loss.backward()
+        
         if critic_clip:
-            torch.nn.utils.clip_grad_norm_(
-                chain(agent.critic1.parameters(), agent.critic2.parameters()), critic_clip)
+            torch.nn.utils.clip_grad_norm_(chain(agent.critic1.parameters(), agent.critic2.parameters()), critic_clip)
         critic_optimizer.step()
 
         if actor_per:
@@ -78,14 +89,18 @@ class AWAC:
             dist = agent.actor(state_batch)
             actions = dist.sample()
             logp_a = dist.log_prob(actions).sum(-1, keepdim=True)
+            
             with torch.no_grad():
                 filtered_adv = adv_filter(state_batch, actions)
+                
             actor_loss = -(logp_a * filtered_adv).mean()
 
             actor_optimizer.zero_grad()
             actor_loss.backward()
+            
             if actor_clip:
                 torch.nn.utils.clip_grad_norm_(agent.actor.parameters(), actor_clip)
+                
             actor_optimizer.step()
     
     
@@ -94,29 +109,28 @@ class AWAC:
     
     
     def run(self):
-        total_steps = num_steps_offline + num_steps_online
-        total_steps = range(total_steps)
+        total_steps = self.num_steps_offline + self.num_steps_online
 
         done = True
-        for step in total_steps:
-            if step > num_steps_offline:
-                for _ in range(transitions_per_online_step):
+        for step in range(total_steps):
+            if step > self.num_steps_offline:
+                for _ in range(self.transitions_per_online_step):
                     if done:
                         state = train_env.reset()
                         steps_this_ep = 0
                         done = False
                     action = agent.sample_action(state)
                     next_state, reward, done, info = train_env.step(action)
-                    if infinite_bootstrap:
-                        if steps_this_ep + 1 == max_episode_steps:
+                    if self.infinite_bootstrap:
+                        if steps_this_ep + 1 == self.max_episode_steps:
                             done = False
                     buffer.push(state, action, reward, next_state, done)
                     state = next_state
                     steps_this_ep += 1
-                    if steps_this_ep >= max_episode_steps:
+                    if steps_this_ep >= self.max_episode_steps:
                         done = True
 
-            for _ in range(gradient_updates_per_step):
+            for _ in range(self.gradient_updates_per_step):
                 self.train()
 
             if step % target_delay == 0:
