@@ -14,6 +14,7 @@ eval_interval: 5000
 eval_episodes: 10
 gamma: 0.99
 gradient_updates_per_step: 1
+hidden_size: 512
 log_std_low: -10
 log_std_high: 2 
 max_episode_steps: 100000
@@ -23,7 +24,9 @@ name: awac_run
 tau: 0.005
 transitions_per_online_step: 1
 target_delay: 2
-state_space_size: 
+state_space_size: 2
+act_space_size: 2
+device: cpu
 
 
 

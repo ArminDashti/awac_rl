@@ -81,7 +81,6 @@ class StochasticActor(nn.Module):
         self.log_std_high = self.cfg['log_std_high']
         hidden_size = self.cfg['hidden_size']
         self.dist_impl = self.cfg['dist_impl']
-        
         self.fc1 = nn.Linear(state_space_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, 2 * act_space_size)
@@ -142,13 +141,13 @@ class Agent:
         self.critic2 = BigCritic(cfg).to(self.cfg['device'])
         
     
-    def _to_train(self):
+    def to_train(self):
         self.actor.train()
         self.critic1.train()
         self.critic2.train()
         
 
-    def _to_eval(self):
+    def to_eval(self):
         self.actor.eval()
         self.critic1.eval()
         self.critic2.eval()
